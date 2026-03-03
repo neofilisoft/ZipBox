@@ -1,6 +1,6 @@
 # ZipBox
 
-**ZipBox** is a file archiver focused on **own file format**, a **clean CLI**, and an internal architecture that stays maintainable as formats/features grow.
+**ZipBox** is a file archiver focused on **own file format**, a **clean CLI**, and an internal architecture that stays maintainable as features grow.
 
 > Status: **Work in progress**
 
