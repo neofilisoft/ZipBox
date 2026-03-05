@@ -31,17 +31,19 @@ struct Args {
     std::string command;
     std::vector<std::string> positional;
     std::string password;
-    zipbox::crypto::EncryptionAlgorithm encryptionAlgorithm = zipbox::crypto::EncryptionAlgorithm::Aes256;
+    winzox::crypto::EncryptionAlgorithm encryptionAlgorithm = winzox::crypto::EncryptionAlgorithm::Aes256;
     bool encryptionAlgorithmExplicit = false;
     ArchiveFormat archiveFormat = ArchiveFormat::Zox;
     size_t splitSize = 0;
     int zstdLevel = 9;
     int zlibLevel = 9;
+    int lzmaLevel = 6;
+    uint32_t threadCount = 0;
     bool speedPresetExplicit = false;
-    zipbox::compression::CompressionAlgorithm defaultAlgorithm = zipbox::compression::CompressionAlgorithm::Zstd;
+    winzox::compression::CompressionAlgorithm defaultAlgorithm = winzox::compression::CompressionAlgorithm::Zstd;
     bool defaultAlgorithmExplicit = false;
     std::string comment;
-    std::vector<zipbox::archive::FileCompressionOverride> fileOverrides;
+    std::vector<winzox::archive::FileCompressionOverride> fileOverrides;
     bool valid = false;
     std::string error;
 };
@@ -119,7 +121,7 @@ void ShowMessage(const std::string& title, const std::string& message, UINT icon
 #endif
 
 std::string NormalizeCommand(const std::string& value) {
-    const std::string lower = zipbox::utils::ToLower(value);
+    const std::string lower = winzox::utils::ToLower(value);
     if (lower == "add" || lower == "a" || lower == "c-zox") return "add";
     if (lower == "extract" || lower == "x") return "extract";
     if (lower == "list" || lower == "l") return "list";
@@ -168,7 +170,7 @@ size_t ParseSplitSize(const std::string& value) {
 }
 
 ArchiveFormat ParseArchiveFormat(const std::string& value) {
-    const std::string lower = zipbox::utils::ToLower(value);
+    const std::string lower = winzox::utils::ToLower(value);
     if (lower == "zox") {
         return ArchiveFormat::Zox;
     }
@@ -178,15 +180,15 @@ ArchiveFormat ParseArchiveFormat(const std::string& value) {
     throw std::runtime_error("Unsupported archive format: " + value);
 }
 
-zipbox::archive::FileCompressionOverride ParseFileOverride(const std::string& value) {
+winzox::archive::FileCompressionOverride ParseFileOverride(const std::string& value) {
     const size_t separator = value.find('=');
     if (separator == std::string::npos || separator == 0 || separator + 1 >= value.size()) {
         throw std::runtime_error("Invalid --file-algo format. Use <relative_path>=<algorithm>");
     }
 
-    zipbox::archive::FileCompressionOverride overrideEntry;
+    winzox::archive::FileCompressionOverride overrideEntry;
     overrideEntry.relativePath = value.substr(0, separator);
-    overrideEntry.algorithm = zipbox::compression::ParseAlgorithmName(value.substr(separator + 1));
+    overrideEntry.algorithm = winzox::compression::ParseAlgorithmName(value.substr(separator + 1));
     return overrideEntry;
 }
 
@@ -197,16 +199,16 @@ int ParseZstdSpeedPreset(const std::string& value) {
     }
 
     if (lower == "fast") {
-        return 5;
+        return 4;
     }
     if (lower == "normal") {
-        return 8;
+        return 10;
     }
     if (lower == "maximum" || lower == "max") {
-        return 14;
+        return 18;
     }
     if (lower == "ultra") {
-        return 20;
+        return 26;
     }
 
     throw std::runtime_error("Unsupported speed preset: " + value);
@@ -233,42 +235,47 @@ bool IsCanceledError(const std::exception& error) {
 }
 
 void PrintUsage() {
-    std::cout << "ZipBox v1.03 - Modular Archiver\n";
+    std::cout << "WinZOX v2.02.1 - Modular Archiver\n";
     std::cout << "Usage:\n";
-    std::cout << "  zipbox add <input_path> <output_base> [options]\n";
-    std::cout << "  zipbox extract <archive_file> <output_folder> [-p password]\n";
-    std::cout << "  zipbox list <archive_file> [-p password]\n";
-    std::cout << "  zipbox test <archive_file> [-p password]\n";
-    std::cout << "  zipbox shell-add <target_path>\n";
-    std::cout << "  zipbox shell-browse <archive_file>\n";
-    std::cout << "  zipbox shell-extract-files <archive_file>\n";
+    std::cout << "  zox add <input_path> <output_base> [options]\n";
+    std::cout << "  zox extract <archive_file> <output_folder> [-p password]\n";
+    std::cout << "  zox list <archive_file> [-p password]\n";
+    std::cout << "  zox test <archive_file> [-p password]\n";
+    std::cout << "  zox shell-add <target_path>\n";
+    std::cout << "  zox shell-browse <archive_file>\n";
+    std::cout << "  zox shell-extract-files <archive_file>\n";
     std::cout << "\n";
     std::cout << "Options for add:\n";
     std::cout << "  --format <zox|zip>         Output archive format (default: zox)\n";
     std::cout << "  -p <password>              Encrypt the archive\n";
     std::cout << "  --encrypt <aes|gorgon>     Select the encryption algorithm when -p is used\n";
     std::cout << "  -s <size>                  Split size in bytes or with k/m/g suffix\n";
-    std::cout << "  --algo <zstd|zlib|store>   Default algorithm for the whole archive\n";
-    std::cout << "  --preset <fast|normal|maximum|ultra>  Zstd speed preset\n";
+    std::cout << "  --algo <zstd|zlib|lz4|lzma2|store>   Default algorithm for the whole archive\n";
+    std::cout << "  --preset <fast|normal|maximum|ultra>  Zstd speed preset ranges: 3-5 / 8-12 / 15-20 / 22-30\n";
     std::cout << "  --file-algo <path=algo>    Override the algorithm for one relative path\n";
     std::cout << "  --zstd-level <int>         Zstd compression level (default: 9)\n";
     std::cout << "  --zlib-level <0-9>         Zlib compression level (default: 9)\n";
+    std::cout << "  --lzma-level <0-9>         LZMA2 compression level (default: 6)\n";
+    std::cout << "  --threads <n>              Thread count for LZ4/LZMA2 (0 = auto)\n";
     std::cout << "  --comment <text>           Archive comment / metadata note\n";
 }
 
-void PrintArchiveInfo(const zipbox::archive::ArchiveMetadata& metadata) {
+void PrintArchiveInfo(const winzox::archive::ArchiveMetadata& metadata) {
     std::cout << "Format: .zox\n";
     std::cout << "Encrypted: " << (metadata.encrypted ? "yes" : "no") << "\n";
+    std::cout << "Authenticated: " << (metadata.authenticated ? "yes" : "no") << "\n";
+    std::cout << "Integrity SHA-512: " << (metadata.integritySha512 ? "yes" : "no") << "\n";
+    std::cout << "Integrity SHA3-256: " << (metadata.integritySha3_256 ? "yes" : "no") << "\n";
     std::cout << "Solid: " << (metadata.solid ? "yes" : "no") << "\n";
-    std::cout << "Encryption mode: " << zipbox::crypto::EncryptionAlgorithmName(metadata.encryptionAlgorithm) << "\n";
-    std::cout << "Default algorithm: " << zipbox::compression::AlgorithmName(metadata.defaultAlgorithm) << "\n";
+    std::cout << "Encryption mode: " << winzox::crypto::EncryptionAlgorithmName(metadata.encryptionAlgorithm) << "\n";
+    std::cout << "Default algorithm: " << winzox::compression::AlgorithmName(metadata.defaultAlgorithm) << "\n";
     std::cout << "Created: " << FormatTimestamp(metadata.createdUnixTime) << "\n";
     if (!metadata.comment.empty()) {
         std::cout << "Comment: " << metadata.comment << "\n";
     }
 }
 
-void PrintArchiveEntries(const std::vector<zipbox::archive::ArchiveEntryInfo>& entries) {
+void PrintArchiveEntries(const std::vector<winzox::archive::ArchiveEntryInfo>& entries) {
     if (entries.empty()) {
         std::cout << "Archive is empty.\n";
         return;
@@ -286,7 +293,7 @@ void PrintArchiveEntries(const std::vector<zipbox::archive::ArchiveEntryInfo>& e
         crc << std::hex << std::uppercase << std::setw(8) << std::setfill('0') << entry.crc32;
         std::cout << std::left
                   << std::setfill(' ')
-                  << std::setw(10) << zipbox::compression::AlgorithmName(entry.algorithm)
+                  << std::setw(10) << winzox::compression::AlgorithmName(entry.algorithm)
                   << std::setw(14) << entry.storedSize
                   << std::setw(14) << entry.originalSize
                   << std::setw(12) << crc.str()
@@ -322,7 +329,7 @@ Args ParseArgs(const std::vector<std::string>& argv) {
                     args.error = "Missing value for --encrypt";
                     return args;
                 }
-                args.encryptionAlgorithm = zipbox::crypto::ParseEncryptionAlgorithmName(argv[++index]);
+                args.encryptionAlgorithm = winzox::crypto::ParseEncryptionAlgorithmName(argv[++index]);
                 args.encryptionAlgorithmExplicit = true;
             } else if (token == "--format") {
                 if (index + 1 >= argv.size()) {
@@ -341,7 +348,7 @@ Args ParseArgs(const std::vector<std::string>& argv) {
                     args.error = "Missing value for --algo";
                     return args;
                 }
-                args.defaultAlgorithm = zipbox::compression::ParseAlgorithmName(argv[++index]);
+                args.defaultAlgorithm = winzox::compression::ParseAlgorithmName(argv[++index]);
                 args.defaultAlgorithmExplicit = true;
             } else if (token == "--preset") {
                 if (index + 1 >= argv.size()) {
@@ -368,6 +375,18 @@ Args ParseArgs(const std::vector<std::string>& argv) {
                     return args;
                 }
                 args.zlibLevel = std::stoi(argv[++index]);
+            } else if (token == "--lzma-level") {
+                if (index + 1 >= argv.size()) {
+                    args.error = "Missing value for --lzma-level";
+                    return args;
+                }
+                args.lzmaLevel = std::stoi(argv[++index]);
+            } else if (token == "--threads") {
+                if (index + 1 >= argv.size()) {
+                    args.error = "Missing value for --threads";
+                    return args;
+                }
+                args.threadCount = static_cast<uint32_t>(std::stoul(argv[++index]));
             } else if (token == "--comment") {
                 if (index + 1 >= argv.size()) {
                     args.error = "Missing value for --comment";
@@ -413,6 +432,10 @@ Args ParseArgs(const std::vector<std::string>& argv) {
         args.valid = false;
         args.error = "Zlib level must be between 0 and 9";
     }
+    if (args.lzmaLevel < 0 || args.lzmaLevel > 9) {
+        args.valid = false;
+        args.error = "LZMA2 level must be between 0 and 9";
+    }
 
     if (args.command == "add" && args.password.empty() && args.encryptionAlgorithmExplicit) {
         args.valid = false;
@@ -421,7 +444,7 @@ Args ParseArgs(const std::vector<std::string>& argv) {
 
     if (args.command == "add" &&
         !args.password.empty() &&
-        args.encryptionAlgorithm == zipbox::crypto::EncryptionAlgorithm::None) {
+        args.encryptionAlgorithm == winzox::crypto::EncryptionAlgorithm::None) {
         args.valid = false;
         args.error = "--encrypt must be aes or gorgon when -p is used";
     }
@@ -438,11 +461,11 @@ Args ParseArgs(const std::vector<std::string>& argv) {
 
     if (args.command == "add" && args.archiveFormat == ArchiveFormat::Zip) {
         if (!args.defaultAlgorithmExplicit) {
-            args.defaultAlgorithm = zipbox::compression::CompressionAlgorithm::Zlib;
+            args.defaultAlgorithm = winzox::compression::CompressionAlgorithm::Zlib;
         }
 
-        if (args.defaultAlgorithm != zipbox::compression::CompressionAlgorithm::Store &&
-            args.defaultAlgorithm != zipbox::compression::CompressionAlgorithm::Zlib) {
+        if (args.defaultAlgorithm != winzox::compression::CompressionAlgorithm::Store &&
+            args.defaultAlgorithm != winzox::compression::CompressionAlgorithm::Zlib) {
             args.valid = false;
             args.error = "ZIP supports only --algo zlib or --algo store";
         }
@@ -475,7 +498,7 @@ Args ParseArgs(const std::vector<std::string>& argv) {
 
     if (args.command == "add" &&
         args.speedPresetExplicit &&
-        args.defaultAlgorithm != zipbox::compression::CompressionAlgorithm::Zstd) {
+        args.defaultAlgorithm != winzox::compression::CompressionAlgorithm::Zstd) {
         args.valid = false;
         args.error = "--preset requires --algo zstd";
     }
@@ -492,7 +515,7 @@ int RunApp(const std::vector<std::string>& argv) {
         if (!args.error.empty()) {
 #ifdef _WIN32
             if (!g_hasConsole) {
-                ShowMessage("ZipBox", args.error + "\n\nUse the command line for help output.", MB_ICONERROR);
+                ShowMessage("WinZOX", args.error + "\n\nUse the command line for help output.", MB_ICONERROR);
                 return 1;
             }
 #endif
@@ -504,43 +527,45 @@ int RunApp(const std::vector<std::string>& argv) {
 
     try {
         if (args.command == "add") {
-            zipbox::archive::ZipBoxConfig config;
+            winzox::archive::WinZOXConfig config;
             config.password = args.password;
             config.encryptionAlgorithm = args.encryptionAlgorithm;
             config.splitSize = args.splitSize;
             config.zstdLevel = args.zstdLevel;
             config.zlibLevel = args.zlibLevel;
+            config.lzmaLevel = args.lzmaLevel;
+            config.threadCount = args.threadCount;
             config.defaultAlgorithm = args.defaultAlgorithm;
             config.comment = args.comment;
             config.fileOverrides = args.fileOverrides;
 
             if (args.archiveFormat == ArchiveFormat::Zip) {
-                zipbox::archive::CreateZipArchive(args.positional[0], args.positional[1], config);
+                winzox::archive::CreateZipArchive(args.positional[0], args.positional[1], config);
             } else {
-                zipbox::archive::CreateArchive(args.positional[0], args.positional[1], config);
+                winzox::archive::CreateArchive(args.positional[0], args.positional[1], config);
             }
         } else if (args.command == "extract") {
-            zipbox::extraction::ExtractArchive(args.positional[0], args.positional[1], args.password);
+            winzox::extraction::ExtractArchive(args.positional[0], args.positional[1], args.password);
         } else if (args.command == "list") {
-            if (zipbox::archive::LooksLikeZoxArchive(args.positional[0])) {
-                PrintArchiveInfo(zipbox::extraction::GetArchiveMetadata(args.positional[0], args.password));
+            if (winzox::archive::LooksLikeZoxArchive(args.positional[0])) {
+                PrintArchiveInfo(winzox::extraction::GetArchiveMetadata(args.positional[0], args.password));
             }
-            PrintArchiveEntries(zipbox::extraction::ListArchiveEntries(args.positional[0], args.password));
+            PrintArchiveEntries(winzox::extraction::ListArchiveEntries(args.positional[0], args.password));
         } else if (args.command == "test") {
-            zipbox::extraction::TestArchive(args.positional[0], args.password);
+            winzox::extraction::TestArchive(args.positional[0], args.password);
             std::cout << "Archive passed integrity checks.\n";
         } else if (args.command == "shell-add") {
-            zipbox::shell::RunShellAddDialog(args.positional);
+            winzox::shell::RunShellAddDialog(args.positional);
         } else if (args.command == "shell-quick-zox") {
-            zipbox::shell::RunQuickAddZox(args.positional);
+            winzox::shell::RunQuickAddZox(args.positional);
         } else if (args.command == "shell-browse") {
-            zipbox::shell::RunShellBrowse(args.positional[0]);
+            winzox::shell::RunShellBrowse(args.positional[0]);
         } else if (args.command == "shell-extract-files") {
-            zipbox::shell::RunShellExtractFiles(args.positional[0]);
+            winzox::shell::RunShellExtractFiles(args.positional[0]);
         } else if (args.command == "shell-extract") {
-            zipbox::shell::RunShellExtract(args.positional[0], false);
+            winzox::shell::RunShellExtract(args.positional[0], false);
         } else if (args.command == "shell-extract-here") {
-            zipbox::shell::RunShellExtract(args.positional[0], true);
+            winzox::shell::RunShellExtract(args.positional[0], true);
         }
     } catch (const std::exception& error) {
 #ifdef _WIN32
@@ -548,7 +573,7 @@ int RunApp(const std::vector<std::string>& argv) {
             return 1;
         }
         if (!g_hasConsole) {
-            ShowMessage("ZipBox", "Error: " + std::string(error.what()), MB_ICONERROR);
+            ShowMessage("WinZOX", "Error: " + std::string(error.what()), MB_ICONERROR);
             return 1;
         }
 #endif
@@ -569,7 +594,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
             return 1;
         }
         if (!g_hasConsole) {
-            ShowMessage("ZipBox", "Error: " + std::string(error.what()), MB_ICONERROR);
+            ShowMessage("WinZOX", "Error: " + std::string(error.what()), MB_ICONERROR);
             return 1;
         }
 
