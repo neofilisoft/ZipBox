@@ -63,7 +63,8 @@ These are **recommended defaults** for a modern archiver:
 
 ### Build (CMake)
 ```bash
-git clone https://github.com/neofilisoft/ZipBox.git
-cd ZipBox
+# Clone repository
+git clone https://github.com/neofilisoft/WinZOX.git
+cd WinZOX
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
