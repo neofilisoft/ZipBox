@@ -43,7 +43,7 @@
 ## Supported Formats
 | Format | Create | Extract | Notes |
 
-| `.zox` | Yes    |  Yes   | WinZOX native format |
+| `.zox`  | Yes       |  Yes     | WinZOX native format |
 
 | `.zip` | Yes   | Yes  | Standard ZIP workflow |
 
