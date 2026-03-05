@@ -79,8 +79,13 @@ void CreateZipArchive(const std::vector<std::string>& inputPaths,
                       const WinZOXConfig& config,
                       const utils::ProgressCallback& progressCallback = {});
 ArchiveMetadata ReadArchiveMetadata(const std::string& filename);
+ArchiveMetadata ReadArchiveMetadataFromBytes(const std::vector<uint8_t>& raw);
 std::vector<ArchiveEntryInfo> ReadArchiveIndex(const std::string& filename, const std::string& password = "");
+std::vector<ArchiveEntryInfo> ReadArchiveIndexFromBytes(const std::vector<uint8_t>& raw,
+                                                        const std::string& password = "");
 ArchiveContents ReadArchive(const std::string& filename, const std::string& password = "");
+ArchiveContents ReadArchiveFromBytes(const std::vector<uint8_t>& raw, const std::string& password = "");
 bool LooksLikeZoxArchive(const std::string& filename);
+bool LooksLikeZoxArchiveBytes(const std::vector<uint8_t>& raw);
 
 } // namespace winzox::archive
