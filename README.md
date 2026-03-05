@@ -2,7 +2,7 @@
 
 **WinZOX** is a file archiver focused on **own file format**, a **clean CLI**, and an internal architecture that stays maintainable as features grow.
 
-> Status: **Work in progress**
+> Status: **On Developing**
 
 ---
 
