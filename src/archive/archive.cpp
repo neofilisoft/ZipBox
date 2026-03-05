@@ -842,10 +842,14 @@ bool LooksLikeZoxArchive(const std::string& filename) {
     }
 
     const std::vector<uint8_t> header = io::ReadFileBytes(path);
-    return HasMagic(header, kLegacyMagic) ||
-           HasMagic(header, kPreviousMagicV5) ||
-           HasMagic(header, kPreviousMagicV6) ||
-           HasMagic(header, kCurrentMagic);
+    return LooksLikeZoxArchiveBytes(header);
+}
+
+bool LooksLikeZoxArchiveBytes(const std::vector<uint8_t>& raw) {
+    return HasMagic(raw, kLegacyMagic) ||
+           HasMagic(raw, kPreviousMagicV5) ||
+           HasMagic(raw, kPreviousMagicV6) ||
+           HasMagic(raw, kCurrentMagic);
 }
 
 void CreateArchive(const std::string& inputPath,
@@ -1116,8 +1120,7 @@ void CreateZipArchive(const std::vector<std::string>& inputPaths,
     ReportProgress(progressCallback, 1, 1, fs::path(finalOutputPath).filename().u8string(), "Archive created");
 }
 
-ArchiveMetadata ReadArchiveMetadata(const std::string& filename) {
-    const std::vector<uint8_t> raw = ReadAllArchiveBytes(filename);
+ArchiveMetadata ReadArchiveMetadataFromBytes(const std::vector<uint8_t>& raw) {
     if (HasMagic(raw, kCurrentMagic) || HasMagic(raw, kPreviousMagicV6) || HasMagic(raw, kPreviousMagicV5)) {
         CurrentHeader header = ParseCurrentHeader(raw);
         const DirectoryFooter footer = ParseDirectoryFooter(raw, header);
@@ -1136,8 +1139,11 @@ ArchiveMetadata ReadArchiveMetadata(const std::string& filename) {
     throw std::runtime_error("Invalid .zox archive header");
 }
 
-std::vector<ArchiveEntryInfo> ReadArchiveIndex(const std::string& filename, const std::string& password) {
-    const std::vector<uint8_t> raw = ReadAllArchiveBytes(filename);
+ArchiveMetadata ReadArchiveMetadata(const std::string& filename) {
+    return ReadArchiveMetadataFromBytes(ReadAllArchiveBytes(filename));
+}
+
+std::vector<ArchiveEntryInfo> ReadArchiveIndexFromBytes(const std::vector<uint8_t>& raw, const std::string& password) {
     if (HasMagic(raw, kCurrentMagic) || HasMagic(raw, kPreviousMagicV6) || HasMagic(raw, kPreviousMagicV5)) {
         const CurrentHeader header = ParseCurrentHeader(raw);
         const DirectoryFooter footer = ParseDirectoryFooter(raw, header);
@@ -1158,8 +1164,11 @@ std::vector<ArchiveEntryInfo> ReadArchiveIndex(const std::string& filename, cons
     throw std::runtime_error("Invalid .zox archive header");
 }
 
-ArchiveContents ReadArchive(const std::string& filename, const std::string& password) {
-    const std::vector<uint8_t> raw = ReadAllArchiveBytes(filename);
+std::vector<ArchiveEntryInfo> ReadArchiveIndex(const std::string& filename, const std::string& password) {
+    return ReadArchiveIndexFromBytes(ReadAllArchiveBytes(filename), password);
+}
+
+ArchiveContents ReadArchiveFromBytes(const std::vector<uint8_t>& raw, const std::string& password) {
     if (HasMagic(raw, kLegacyMagic)) {
         return ReadArchiveLegacy(raw, password);
     }
@@ -1307,6 +1316,10 @@ ArchiveContents ReadArchive(const std::string& filename, const std::string& pass
     }
 
     return contents;
+}
+
+ArchiveContents ReadArchive(const std::string& filename, const std::string& password) {
+    return ReadArchiveFromBytes(ReadAllArchiveBytes(filename), password);
 }
 
 } // namespace winzox::archive
