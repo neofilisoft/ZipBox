@@ -1,12 +1,12 @@
-# ZipBox
+# WinZOX
 
-**ZipBox** is a file archiver focused on **own file format**, a **clean CLI**, and an internal architecture that stays maintainable as features grow.
+**WinZOX** is a file archiver focused on **own file format**, a **clean CLI**, and an internal architecture that stays maintainable as features grow.
 
 > Status: **Work in progress**
 
 ---
 
-## Why ZipBox
+## Why ZOX
 - **C++ performance**: predictable speed + easier native integration.
 - **Modular design**: add codecs/formats without turning the codebase into spaghetti.
 - **Practical UX**: progress, speed, ETA, cancel but without the drama.
@@ -38,7 +38,7 @@
 | `.rar` | —  | Yes | Extract-only |
 | `.zox` | Yes | Yes | If you use a custom container |
 
-> ZOX is a ZipBox format.
+> ZOX is a WinZOX format.
 ---
 
 ## Compression Presets (zstd example)
