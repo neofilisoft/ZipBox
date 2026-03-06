@@ -235,7 +235,7 @@ bool IsCanceledError(const std::exception& error) {
 }
 
 void PrintUsage() {
-    std::cout << "WinZOX v2.02.1 - Modular Archiver\n";
+    std::cout << "WinZOX v2.02.2 - Modular Archiver\n";
     std::cout << "Usage:\n";
     std::cout << "  zox add <input_path> <output_base> [options]\n";
     std::cout << "  zox extract <archive_file> <output_folder> [-p password]\n";
