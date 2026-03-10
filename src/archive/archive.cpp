@@ -1,4 +1,4 @@
-﻿#include "archive/archive.hpp"
+#include "archive/archive.hpp"
 #include "archive/archive_integrity.hpp"
 
 #include "crypto/aes256.hpp"
@@ -283,8 +283,8 @@ crypto::EncryptionMetadata ReadEncryptionMetadata(const std::vector<uint8_t>& ra
     metadata.iterations = includeIterations
         ? ReadValue<uint32_t>(raw, offset)
         : crypto::kLegacyKdfIterations;
-    if (includeIterations && metadata.iterations < crypto::kMinKdfIterations) {
-        throw std::runtime_error("Archive KDF iteration count is below the minimum security threshold");
+    if (includeIterations && !crypto::IsSupportedKdfParameter(metadata.iterations)) {
+        throw std::runtime_error("Archive KDF parameters are invalid or below the minimum security threshold");
     }
     return metadata;
 }
@@ -884,8 +884,8 @@ void CreateArchive(const std::vector<std::string>& inputPaths,
     crypto::EncryptionMetadata cryptoMetadata;
     if (metadata.encrypted) {
         cryptoMetadata = crypto::CreateEncryptionMetadata(metadata.encryptionAlgorithm);
-        if (cryptoMetadata.iterations < crypto::kMinKdfIterations) {
-            throw std::runtime_error("KDF iteration count must be at least 100000");
+        if (!crypto::IsSupportedKdfParameter(cryptoMetadata.iterations)) {
+            throw std::runtime_error("KDF parameters are invalid");
         }
     }
 
